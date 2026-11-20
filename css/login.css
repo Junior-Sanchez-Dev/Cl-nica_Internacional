@@ -20,7 +20,7 @@ body::before {
   position: absolute;
   width: 100%;
   height: 100%;
-  background: url("https://i.pinimg.com/736x/01/e1/79/01e179fee8d142d87c9a24a882b05637.jpg"),
+  background: url("../images/slider1.jpg"),
     #000000;
   background-position: center;
   background-size: cover;

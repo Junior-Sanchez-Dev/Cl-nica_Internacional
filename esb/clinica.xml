@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://ws.apache.org/ns/synapse">
+ <endpoint name="ClinicaPHP"><address uri="http://127.0.0.1:8086" format="rest"><timeout><duration>10000</duration><responseAction>fault</responseAction></timeout><suspendOnFailure><initialDuration>0</initialDuration><progressionFactor>1</progressionFactor><maximumDuration>0</maximumDuration></suspendOnFailure></address></endpoint>
+ <sequence name="ClinicaEntrada">
+  <filter source="$trp:X-ESB-Token" regex="__ESB_TOKEN__"><then>
+   <property name="clinica.traza" expression="get-property('MessageID')"/>
+   <log level="custom"><property name="ESB" value="Apache-Synapse"/><property name="operacion" expression="get-property('clinica.operacion')"/><property name="traza" expression="get-property('clinica.traza')"/></log>
+   <property name="REST_URL_POSTFIX" expression="concat('/php/',get-property('clinica.operacion'),'.php?',$trp:X-Clinica-Query)" scope="axis2"/>
+   <header name="Host" scope="transport" action="remove"/>
+   <send><endpoint key="ClinicaPHP"/></send>
+  </then><else><property name="HTTP_SC" value="403" scope="axis2"/><property name="messageType" value="application/json" scope="axis2"/><property name="NO_ENTITY_BODY" scope="axis2" action="remove"/><payloadFactory><format><respuesta xmlns=""><success>false</success><message>ESB_ACCESO_DENEGADO</message></respuesta></format><args/></payloadFactory><respond/></else></filter>
+ </sequence>
+ <sequence name="ClinicaSalida">
+  <header name="X-ESB-Trace" expression="get-property('clinica.traza')" scope="transport"/>
+  <header name="X-ESB-Engine" value="Apache-Synapse-3.0.2" scope="transport"/>
+  <send/>
+ </sequence>
+ <sequence name="ClinicaFallo">
+  <log level="custom"><property name="ESB" value="FALLO_TRANSPORTE"/><property name="operacion" expression="get-property('clinica.operacion')"/></log>
+  <header name="X-ESB-Engine" value="Apache-Synapse-3.0.2" scope="transport"/>
+  <property name="HTTP_SC" value="503" scope="axis2"/><property name="messageType" value="application/json" scope="axis2"/><property name="NO_ENTITY_BODY" scope="axis2" action="remove"/><payloadFactory><format><respuesta xmlns=""><success>false</success><message>SERVICIO_INTERNO_NO_DISPONIBLE</message></respuesta></format><args/></payloadFactory><respond/>
+ </sequence>
+ <sequence name="main"><property name="HTTP_SC" value="404" scope="axis2"/><property name="messageType" value="application/json" scope="axis2"/><property name="NO_ENTITY_BODY" scope="axis2" action="remove"/><payloadFactory><format><respuesta xmlns=""><success>false</success><message>RUTA_ESB_NO_REGISTRADA</message></respuesta></format><args/></payloadFactory><respond/></sequence>
+ <sequence name="fault"><property name="HTTP_SC" value="503" scope="axis2"/><property name="messageType" value="application/json" scope="axis2"/><property name="NO_ENTITY_BODY" scope="axis2" action="remove"/><payloadFactory><format><respuesta xmlns=""><success>false</success><message>FALLO_ESB</message></respuesta></format><args/></payloadFactory><respond/></sequence>
+ <api name="ClinicaServicios" context="/clinica">
+<resource uri-template="/sesion" methods="GET"><inSequence><property name="clinica.operacion" value="sesion"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/procesar_login" methods="POST"><inSequence><property name="clinica.operacion" value="procesar_login"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/procesar_registro" methods="POST"><inSequence><property name="clinica.operacion" value="procesar_registro"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/cerrar_sesion" methods="POST"><inSequence><property name="clinica.operacion" value="cerrar_sesion"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/estado_integraciones" methods="GET"><inSequence><property name="clinica.operacion" value="estado_integraciones"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/identidad" methods="POST"><inSequence><property name="clinica.operacion" value="identidad"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/seguros" methods="POST"><inSequence><property name="clinica.operacion" value="seguros"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/sedes" methods="GET"><inSequence><property name="clinica.operacion" value="sedes"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/doctores" methods="GET"><inSequence><property name="clinica.operacion" value="doctores"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/disponibilidad" methods="GET"><inSequence><property name="clinica.operacion" value="disponibilidad"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/admision" methods="POST"><inSequence><property name="clinica.operacion" value="admision"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/reservar_cita" methods="POST"><inSequence><property name="clinica.operacion" value="reservar_cita"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/obtener_citas" methods="GET"><inSequence><property name="clinica.operacion" value="obtener_citas"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+<resource uri-template="/comprobantes" methods="GET POST"><inSequence><property name="clinica.operacion" value="comprobantes"/><sequence key="ClinicaEntrada"/></inSequence><outSequence><sequence key="ClinicaSalida"/></outSequence><faultSequence><sequence key="ClinicaFallo"/></faultSequence></resource>
+</api></definitions>

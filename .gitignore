@@ -1,0 +1,30 @@
+# Configuracion privada y credenciales
+.env
+.env.*
+!.env.example
+**/factiliza-config.json
+**/proveedores-config.json
+**/esb-config.json
+*.local.json
+# Certificados y claves
+*.pem
+*.key
+*.pfx
+*.p12
+# Bases locales, cache y registros
+*.sqlite
+*.sqlite-*
+*.db
+*.log
+*.lock
+osrm-*.json
+# Resultados de pruebas y sesiones
+/tests/*.json
+/docs/*.postman_collection.json
+# Dependencias y archivos locales
+node_modules/
+__pycache__/
+*.pyc
+.vscode/
+.DS_Store
+Thumbs.db

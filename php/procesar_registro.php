@@ -1,52 +1,30 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-require_once 'conexion.php';
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $nombre = $conexion->real_escape_string($_POST['nombre']);
-    $apellido = $conexion->real_escape_string($_POST['apellido']);
-    $email = $conexion->real_escape_string($_POST['email']);
-    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-
-    // Iniciar transacción
-    $conexion->begin_transaction();
-
-    try {
-        // Insertar en la tabla usuarios
-        $sql_usuario = "INSERT INTO usuarios (email, password) VALUES (?, ?)";
-        $stmt_usuario = $conexion->prepare($sql_usuario);
-        $stmt_usuario->bind_param("ss", $email, $password);
-        $stmt_usuario->execute();
-        $usuario_id = $stmt_usuario->insert_id;
-
-        // Insertar en la tabla informacion_personal
-        $sql_info = "INSERT INTO informacion_personal (usuario_id, nombre, apellido) VALUES (?, ?, ?)";
-        $stmt_info = $conexion->prepare($sql_info);
-        $stmt_info->bind_param("iss", $usuario_id, $nombre, $apellido);
-        $stmt_info->execute();
-
-        // Asignar rol de paciente por defecto
-        $sql_rol = "INSERT INTO usuario_roles (usuario_id, rol_id) VALUES (?, (SELECT id FROM roles WHERE nombre = 'paciente'))";
-        $stmt_rol = $conexion->prepare($sql_rol);
-        $stmt_rol->bind_param("i", $usuario_id);
-        $stmt_rol->execute();
-
-        // Confirmar transacción
-        $conexion->commit();
-
-        echo json_encode(["success" => true, "message" => "Usuario registrado exitosamente"]);
-    } catch (Exception $e) {
-        // Revertir transacción en caso de error
-        $conexion->rollback();
-        echo json_encode(["success" => false, "message" => "Error al registrar: " . $e->getMessage()]);
-    }
-
-    $stmt_usuario->close();
-    $stmt_info->close();
-    $stmt_rol->close();
+require __DIR__.'/api.php';
+metodo('POST');
+csrf();
+$d=entrada();
+$nombre=texto($d,'nombre'); $apellido=texto($d,'apellido');
+$email=strtolower(texto($d,'email')); $password=$d['password'] ?? null;
+if ($nombre==='' || $apellido==='' || mb_strlen($nombre)>100 || mb_strlen($apellido)>100 ||
+    !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email)>254 || !is_string($password) || strlen($password)<8 || strlen($password)>72) {
+    fallo(400,'DATOS_INVALIDOS','Complete nombres, apellidos, un correo valido y una contrasena de 8 a 72 bytes.');
 }
-
-$conexion->close();
-?>
+$hash=password_hash($password, PASSWORD_DEFAULT);
+$conexion->begin_transaction();
+try {
+    $s=$conexion->prepare('INSERT INTO usuarios(email,password) VALUES (?,?)');
+    $s->bind_param('ss',$email,$hash); $s->execute(); $id=$conexion->insert_id;
+    $s=$conexion->prepare('INSERT INTO informacion_personal(usuario_id,nombre,apellido) VALUES (?,?,?)');
+    $s->bind_param('iss',$id,$nombre,$apellido); $s->execute();
+    $s=$conexion->prepare("INSERT INTO usuario_roles(usuario_id,rol_id) SELECT ?,id FROM roles WHERE nombre='paciente'");
+    $s->bind_param('i',$id); $s->execute();
+    if ($s->affected_rows!==1) throw new RuntimeException('Falta el rol paciente');
+    $s=$conexion->prepare('INSERT INTO pacientes(usuario_id,nombre,apellido) VALUES (?,?,?)');
+    $s->bind_param('iss',$id,$nombre,$apellido); $s->execute();
+    $conexion->commit();
+} catch (Throwable $e) {
+    $conexion->rollback();
+    if ($e instanceof mysqli_sql_exception && $e->getCode()===1062) fallo(409,'CORREO_REGISTRADO','El correo ya esta registrado.');
+    throw $e;
+}
+responder(201,['success'=>true,'message'=>'Cuenta creada. Ahora puede iniciar sesion.']);

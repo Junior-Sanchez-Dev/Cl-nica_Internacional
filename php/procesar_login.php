@@ -1,43 +1,13 @@
 <?php
-session_start();
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-require_once 'conexion.php';
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $email = $conexion->real_escape_string($_POST['email']);
-    $password = $_POST['password'];
-
-    $sql = "SELECT u.id, u.email, u.password, ip.nombre, ip.apellido, r.nombre as rol 
-            FROM usuarios u 
-            JOIN informacion_personal ip ON u.id = ip.usuario_id 
-            JOIN usuario_roles ur ON u.id = ur.usuario_id 
-            JOIN roles r ON ur.rol_id = r.id 
-            WHERE u.email = ?";
-
-    $stmt = $conexion->prepare($sql);
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result->num_rows == 1) {
-        $row = $result->fetch_assoc();
-        if (password_verify($password, $row['password'])) {
-            $_SESSION['user_id'] = $row['id'];
-            $_SESSION['user_email'] = $row['email'];
-            $_SESSION['user_nombre'] = $row['nombre'];
-            $_SESSION['user_apellido'] = $row['apellido'];
-            $_SESSION['user_rol'] = $row['rol'];
-            echo json_encode(["success" => true, "message" => "Inicio de sesión exitoso", "redirect" => "index.html"]);
-        } else {
-            echo json_encode(["success" => false, "message" => "Contraseña incorrecta"]);
-        }
-    } else {
-        echo json_encode(["success" => false, "message" => "Usuario no encontrado"]);
-    }
-    $stmt->close();
-}
-
-$conexion->close();
-?>
+require __DIR__.'/api.php';
+metodo('POST'); csrf(); $d=entrada();
+$email=strtolower(texto($d,'email')); $password=$d['password'] ?? null;
+if (!filter_var($email,FILTER_VALIDATE_EMAIL) || !is_string($password) || $password==='') fallo(400,'DATOS_INVALIDOS','Ingrese correo y contrasena.');
+$s=$conexion->prepare("SELECT u.id,u.password,ip.nombre,p.id AS paciente_id FROM usuarios u JOIN informacion_personal ip ON ip.usuario_id=u.id JOIN usuario_roles ur ON ur.usuario_id=u.id JOIN roles r ON r.id=ur.rol_id AND r.nombre='paciente' JOIN pacientes p ON p.usuario_id=u.id WHERE u.email=?");
+$s->bind_param('s',$email); $s->execute(); $u=$s->get_result()->fetch_assoc();
+if (!$u || !password_verify($password,$u['password'])) fallo(401,'CREDENCIALES_INVALIDAS','Correo o contrasena incorrectos, o perfil no habilitado.');
+session_regenerate_id(true);
+$_SESSION['user_id']=(int)$u['id']; $_SESSION['paciente_id']=(int)$u['paciente_id'];
+$_SESSION['user_nombre']=$u['nombre']; $_SESSION['user_rol']='paciente';
+$_SESSION['csrf']=bin2hex(random_bytes(32));
+responder(200,['success'=>true,'message'=>'Inicio de sesion correcto.','redirect'=>'citas.html']);

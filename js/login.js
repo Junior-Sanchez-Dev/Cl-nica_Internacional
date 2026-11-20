@@ -1,96 +1,46 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const container = document.querySelector('.container');
-    const registerLink = document.querySelector('.register-link');
-    const loginLink = document.querySelector('.login-link');
-    const loginButton = document.querySelector('.login-button');
-    const loginForm = document.getElementById('login-form');
-    const signupForm = document.getElementById('signup-form');
-    const passwordInput = document.getElementById('password');
-    const confirmPasswordInput = document.getElementById('confirm-password');
-    const passwordError = document.getElementById('password-error');
-
-    registerLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        container.classList.add('active');
-    });
-
-    loginLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        container.classList.remove('active');
-    });
-
-    loginButton.addEventListener('click', (e) => {
-        e.preventDefault();
-        container.classList.remove('active');
-        container.scrollIntoView({ behavior: 'smooth' });
-    });
-
-    function validatePasswords() {
-        if (passwordInput.value !== confirmPasswordInput.value) {
-            passwordError.style.display = 'block';
-            return false;
-        } else {
-            passwordError.style.display = 'none';
-            return true;
-        }
-    }
-
-    passwordInput.addEventListener('input', validatePasswords);
-    confirmPasswordInput.addEventListener('input', validatePasswords);
-
-    function handleFormSubmit(url, form) {
-        const formData = new FormData(form);
-
-        fetch(url, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                if (data.redirect) {
-                    window.location.href = data.redirect;
-                }
-                if (form === signupForm) {
-                    form.reset();
-                    container.classList.remove('active');
-                }
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    }
-
-    loginForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        handleFormSubmit('php/procesar_login.php', this);
-    });
-
-    signupForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        if (validatePasswords()) {
-            handleFormSubmit('php/procesar_registro.php', this);
-        } else {
-            alert('Las contraseñas no coinciden. Por favor, inténtalo de nuevo.');
-        }
-    });
-
-    // Modificación para redirigir al usuario a la página principal después de iniciar sesión
-    loginForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Aquí iría tu lógica de autenticación
-        // Por ejemplo, una llamada a una API o verificación de credenciales
-
-        // Suponiendo que la autenticación fue exitosa:
-        if (autenticacionExitosa) {
-            // Redirigir a health-center-master/index.html
-            window.location.href = '/health-center-master/index.html';
-        } else {
-            // Mostrar un mensaje de error si la autenticación falla
-            alert('Credenciales incorrectas. Por favor, intente de nuevo.');
-        }
-    });
+document.addEventListener('DOMContentLoaded', () => {
+  const container = document.querySelector('.container');
+  const login = document.getElementById('login-form');
+  const signup = document.getElementById('signup-form');
+  if (new URLSearchParams(window.location.search).get('registro') === '1') container.classList.add('active');
+  const message = document.createElement('p');
+  message.setAttribute('role', 'status');
+  container.before(message);
+  let csrf = '';
+  const ready = fetch(window.ClinicaESB.url('sesion.php'), {credentials: 'same-origin'})
+    .then(r => r.json()).then(d => { if (!d.success) throw Error(d.message); csrf = d.csrfToken; if (d.usuario) window.location.replace('citas.html'); });
+  ready.catch(() => { message.textContent = 'No se pudo conectar. Abra la pagina desde el servidor PHP.'; });
+  document.querySelectorAll('.register-link,.login-link,.login-button').forEach(link => {
+    link.addEventListener('click', e => { e.preventDefault(); container.classList.toggle('active', link.classList.contains('register-link')); });
+  });
+  signup.elements.password.minLength = 8;
+  signup.elements.password.maxLength = 72;
+  const confirm = document.getElementById('confirm-password');
+  function validate() {
+    const ok = signup.elements.password.value === confirm.value;
+    document.getElementById('password-error').style.display = ok ? 'none' : 'block';
+    confirm.setCustomValidity(ok ? '' : 'Las contrasenas no coinciden.');
+  }
+  confirm.addEventListener('input', validate);
+  signup.elements.password.addEventListener('input', validate);
+  async function submit(event, endpoint) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (form === signup) validate();
+    if (!form.reportValidity()) return;
+    const button = form.querySelector('button[type=submit]'); button.disabled = true;
+    try {
+      await ready;
+      const r = await fetch(window.ClinicaESB.url(endpoint), {method: 'POST', credentials: 'same-origin', headers: {'X-CSRF-Token': csrf, 'Content-Type': 'application/json'}, body: JSON.stringify(Object.fromEntries(new FormData(form)))});
+      const d = await r.json();
+      message.textContent = d.message || 'Operacion completada.';
+      if (r.ok && d.success) {
+        if (d.redirect) window.location.assign(d.redirect);
+        else { form.reset(); container.classList.remove('active'); }
+      }
+    } catch (_) { message.textContent = 'No se pudo completar la solicitud. Revise la conexion al servidor.'; }
+    finally { button.disabled = false; }
+  }
+  login.addEventListener('submit', e => submit(e, 'php/procesar_login.php'));
+  signup.addEventListener('submit', e => submit(e, 'php/procesar_registro.php'));
 });
